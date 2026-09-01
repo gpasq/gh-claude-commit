@@ -62,18 +62,13 @@ Upgrade later with `gh extension upgrade claude-commit`, and remove it with
 
 ## Usage
 
-By default the message goes to stdout, so it pipes straight into a commit:
-
-```bash
-gh claude-commit | git commit -F -
-```
-
-Or let the extension make the commit itself. It shows you the message and waits
-for an answer before anything is written:
+Stage your changes, then:
 
 ```bash
 gh claude-commit --commit
 ```
+
+It shows the message and waits before anything is written:
 
 ```console
 ── proposed commit message ──────────────────────────────
@@ -84,46 +79,76 @@ The resolver walked the full parent chain on every lookup.
 Commit this message? [Y]es  [e]dit  [n]o:
 ```
 
-`e` opens the message in your `$EDITOR` before committing; `n` aborts and exits
-non-zero, so `gh claude-commit --commit && git push` will not push. To skip
-straight to the editor, use `--edit`:
+Enter or `y` commits as-is, `e` opens the message in your `$EDITOR` first, and
+`n` aborts with a non-zero exit — so `gh claude-commit --commit && git push`
+will not push a commit you rejected.
+
+### Print it instead
+
+With no flags, the message goes to stdout and nothing touches your repository.
+Useful for piping, or just for a look:
+
+```bash
+gh claude-commit
+```
+
+```bash
+gh claude-commit | git commit -F -
+```
+
+### Go straight to the editor
+
+Skips the prompt and opens `$EDITOR` with the message ready. Emptying the file
+aborts the commit, exactly as with `git commit`:
 
 ```bash
 gh claude-commit --edit
 ```
 
-The prompt only appears when stdin and stderr are both terminals, so hooks,
-pipelines and CI are never blocked by it. Pass `--yes` to skip it deliberately:
+### Steer the message
+
+Anything after the flags is passed to the model as extra guidance:
 
 ```bash
-gh claude-commit --commit --yes
+gh claude-commit --commit -- "emphasize that this fixes the flaky retry test"
 ```
 
-Anything you add after the flags is passed to the model as extra guidance:
-
-```bash
-gh claude-commit --edit -- "call out that this fixes the flaky retry test"
-```
-
-### Amending
+### Amend the last commit
 
 `--amend` describes the *amended* commit: it diffs the index against the parent
-of `HEAD`, and shows Claude the message you're replacing.
+of `HEAD`, and shows Claude the message it is replacing.
 
 ```bash
-git add forgotten-file.go
 gh claude-commit --amend --edit
 ```
 
-### Style
+### Choose a style
 
-By default Claude is shown the last ten commit subjects and asked to match the
-repository's existing style, so a repo that already uses Conventional Commits
-keeps using them. Force the matter either way with `--conventional` /
-`--style plain`.
+By default Claude sees the last ten commit subjects and is asked to match them,
+so a repository already using Conventional Commits keeps using them. Force it
+either way with `--conventional` or `--style plain`:
 
 ```bash
-gh claude-commit --conventional
+gh claude-commit --commit --conventional
+```
+
+### Inspect the prompt without calling Claude
+
+Prints exactly what would be sent — instruction and context — and exits. Costs
+nothing, and is the fastest way to see what the model is working from:
+
+```bash
+gh claude-commit --dry-run
+```
+
+### Non-interactive use
+
+The confirmation prompt only appears when stdin and stderr are both terminals,
+so hooks, pipelines and CI are never blocked by it. To skip it deliberately on a
+terminal, pass `--yes`:
+
+```bash
+gh claude-commit --commit --yes
 ```
 
 ## Flags
