@@ -4,26 +4,7 @@ A [GitHub CLI][gh] extension that writes your commit message for you. It hands
 your staged diff to [Claude Code][cc] and prints a commit message that is ready
 to use verbatim — no headers, no fences, no "Here's a commit message for you".
 
-```console
-$ git add -A
-$ gh claude-commit
-Add gh-claude-commit extension
-
-A GitHub CLI extension that generates commit messages from staged
-changes by piping the diff to Claude Code in headless print mode.
-
-- Collect the staged diff, diffstat, branch name, and recent commit
-  subjects, then send them to `claude --print` on stdin so the message
-  can imitate the repository's prevailing style
-- Budget oversized diffs by capping any single huge file before
-  dropping whole files from the end, keeping the diffstat intact so
-  the full scope of the change is still visible
-- Strip code fences, wrapping quotes, and stray whitespace from the
-  model's reply so the result is usable as a commit message verbatim
-```
-
-*(That is real output — it is the message this extension wrote for its own
-initial commit, trimmed to the first few bullets.)*
+![gh claude-commit generating and confirming a commit message](docs/demo.gif)
 
 
 ## Requirements
@@ -294,6 +275,10 @@ gh extension install .          # install this working copy
 
 `gh claude-commit --dry-run` prints the exact prompt without calling Claude,
 which is the fastest way to iterate on the prompt itself.
+
+The demo at the top of this README is re-recordable — see
+[`docs/demo.tape`](docs/demo.tape) for the [vhs](https://github.com/charmbracelet/vhs)
+script and the crop command.
 
 ### Releasing
 
