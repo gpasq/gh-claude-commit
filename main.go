@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +40,7 @@ type options struct {
 	amend      bool
 	noVerify   bool
 	signoff    bool
+	yes        bool
 	coauthor   bool
 	style      string
 	model      string
@@ -76,8 +79,9 @@ commit:
 
 Or let the extension make the commit itself:
 
-  gh claude-commit --commit
+  gh claude-commit --commit        # shows the message and asks before committing
   gh claude-commit --edit          # opens your editor with the message ready
+  gh claude-commit --commit --yes  # no prompt, for scripts and hooks
 
 Any trailing arguments are extra guidance for the model, e.g.
   gh claude-commit --edit -- "mention that this fixes the retry loop"
@@ -85,6 +89,7 @@ Any trailing arguments are extra guidance for the model, e.g.
 Flags:
   -c, --commit           Create the commit with the generated message
   -e, --edit             Create the commit, opening your editor first (implies -c)
+  -y, --yes              Commit without asking for confirmation
       --amend            Amend the previous commit instead of creating one
       --no-verify        Skip pre-commit and commit-msg hooks
   -s, --signoff          Add a Signed-off-by trailer
@@ -117,6 +122,9 @@ func parseOptions(argv []string) (*options, error) {
 	}
 	for _, name := range []string{"edit", "e"} {
 		fs.BoolVar(&o.edit, name, false, "")
+	}
+	for _, name := range []string{"yes", "y"} {
+		fs.BoolVar(&o.yes, name, false, "")
 	}
 	for _, name := range []string{"signoff", "s"} {
 		fs.BoolVar(&o.signoff, name, false, "")
@@ -257,7 +265,65 @@ func noChangesError(amend bool) error {
 	return errors.New("no staged changes; the working tree is clean")
 }
 
+// confirmMessage shows the generated message and asks what to do with it.
+// Returning 'y' commits as-is, 'e' hands it to the editor first, 'n' aborts.
+func confirmMessage(msg string, r io.Reader, w io.Writer) (byte, error) {
+	fmt.Fprintf(w, "\n%s\n%s\n%s\n", messageRule("proposed commit message"), msg, messageRule(""))
+	in := bufio.NewReader(r)
+	for {
+		fmt.Fprint(w, "Commit this message? [Y]es  [e]dit  [n]o: ")
+		line, err := in.ReadString('\n')
+		if err != nil {
+			// EOF with no answer: treat as an abort rather than committing blind.
+			fmt.Fprintln(w)
+			return 'n', nil
+		}
+		switch strings.ToLower(strings.TrimSpace(line)) {
+		case "", "y", "yes":
+			return 'y', nil
+		case "e", "edit":
+			return 'e', nil
+		case "n", "no", "q", "quit":
+			return 'n', nil
+		}
+		fmt.Fprintln(w, "Please answer y, e, or n.")
+	}
+}
+
+func messageRule(label string) string {
+	const width = 60
+	if label == "" {
+		return strings.Repeat("─", width)
+	}
+	dashes := width - len(label) - 3
+	if dashes < 0 {
+		dashes = 0
+	}
+	return "── " + label + " " + strings.Repeat("─", dashes)
+}
+
+// interactive reports whether we can hold a conversation with a human. Hooks
+// and pipelines must never block on a prompt.
+func interactive() bool {
+	return isTerminal(os.Stdin) && isTerminal(os.Stderr)
+}
+
 func commitWith(msg string, o *options) error {
+	// --edit already puts the message in front of the user, and --yes is an
+	// explicit request not to be asked.
+	if !o.edit && !o.yes && interactive() {
+		action, err := confirmMessage(msg, os.Stdin, os.Stderr)
+		if err != nil {
+			return err
+		}
+		switch action {
+		case 'n':
+			return errors.New("aborted; nothing was committed")
+		case 'e':
+			o.edit = true
+		}
+	}
+
 	dir, err := os.MkdirTemp("", "gh-claude-commit")
 	if err != nil {
 		return err

@@ -180,3 +180,39 @@ func TestEmptyModelDefersToClaudeConfig(t *testing.T) {
 		t.Errorf(`--model "" should omit the flag entirely, got: %s`, args)
 	}
 }
+
+func TestConfirmMessage(t *testing.T) {
+	cases := []struct {
+		input string
+		want  byte
+	}{
+		{"\n", 'y'}, {"y\n", 'y'}, {"YES\n", 'y'},
+		{"e\n", 'e'}, {"Edit\n", 'e'},
+		{"n\n", 'n'}, {"quit\n", 'n'},
+		{"maybe\nn\n", 'n'}, // reprompts on garbage
+		{"", 'n'},           // EOF must abort, never commit blind
+	}
+	for _, c := range cases {
+		var out strings.Builder
+		got, err := confirmMessage("Subject line", strings.NewReader(c.input), &out)
+		if err != nil {
+			t.Fatalf("input %q: %v", c.input, err)
+		}
+		if got != c.want {
+			t.Errorf("input %q => %q, want %q", c.input, got, c.want)
+		}
+		if !strings.Contains(out.String(), "Subject line") {
+			t.Errorf("input %q: message was not shown to the user", c.input)
+		}
+	}
+}
+
+func TestParseOptionsYes(t *testing.T) {
+	o, err := parseOptions([]string{"--commit", "--yes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.yes || !o.commit {
+		t.Errorf("yes=%v commit=%v", o.yes, o.commit)
+	}
+}

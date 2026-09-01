@@ -68,17 +68,35 @@ By default the message goes to stdout, so it pipes straight into a commit:
 gh claude-commit | git commit -F -
 ```
 
-Or let the extension make the commit itself:
+Or let the extension make the commit itself. It shows you the message and waits
+for an answer before anything is written:
 
 ```bash
 gh claude-commit --commit
 ```
 
-To read it over — and edit it — before it lands, use `--edit`, which opens your
-usual `$EDITOR` with the message already filled in:
+```console
+── proposed commit message ──────────────────────────────
+Cache resolved config per workspace root
+
+The resolver walked the full parent chain on every lookup.
+────────────────────────────────────────────────────────────
+Commit this message? [Y]es  [e]dit  [n]o:
+```
+
+`e` opens the message in your `$EDITOR` before committing; `n` aborts and exits
+non-zero, so `gh claude-commit --commit && git push` will not push. To skip
+straight to the editor, use `--edit`:
 
 ```bash
 gh claude-commit --edit
+```
+
+The prompt only appears when stdin and stderr are both terminals, so hooks,
+pipelines and CI are never blocked by it. Pass `--yes` to skip it deliberately:
+
+```bash
+gh claude-commit --commit --yes
 ```
 
 Anything you add after the flags is passed to the model as extra guidance:
@@ -114,6 +132,7 @@ gh claude-commit --conventional
 | --- | --- |
 | `-c`, `--commit` | Create the commit with the generated message |
 | `-e`, `--edit` | Create the commit, opening your editor first (implies `-c`) |
+| `-y`, `--yes` | Commit without asking for confirmation |
 | `--amend` | Amend the previous commit instead of creating one |
 | `--no-verify` | Skip pre-commit and commit-msg hooks |
 | `-s`, `--signoff` | Add a `Signed-off-by` trailer |
@@ -238,7 +257,7 @@ diffstat always goes through intact, so the model still knows the full scope of
 what it is describing.
 
 Nothing is written to your repository unless you pass `--commit`, `--edit`, or
-`--output`.
+`--output` — and `--commit` asks first whenever it has a terminal to ask on.
 
 ## Development
 
